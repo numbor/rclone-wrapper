@@ -129,10 +129,11 @@ mount_remote() {
         exit 1
     fi
 
-    # If no remote specified, show usage
-    if [ -z "$2" ]; then
-        echo "Usage: $0 mount <remote-name> [mount-path]"
-        echo "  mount-path: Optional custom mount directory (default: /mnt/rclone/<remote-name>)"
+    # Check if all required arguments are provided
+    if [ -z "$2" ] || [ -z "$3" ]; then
+        echo "Usage: $0 mount <remote-name> <mount-path>"
+        echo "  remote-name: Name of the remote to mount"
+        echo "  mount-path: Directory where the remote will be mounted"
         echo "Available remotes:"
         for remote in "${remotes[@]}"; do
             current_mount=$(get_current_mount "$remote")
@@ -168,13 +169,8 @@ mount_remote() {
         exit 1
     fi
 
-    # Set mount point (use custom path if provided, otherwise use default)
-    local mount_point
-    if [ -n "$3" ]; then
-        mount_point="$3"
-    else
-        mount_point="/mnt/rclone/$remote_name"
-    fi
+    # Set mount point from provided path
+    local mount_point="$3"
 
     # Create mount point if it doesn't exist
     sudo mkdir -p "$mount_point"
@@ -293,6 +289,53 @@ unmount_remote() {
     fi
 }
 
+# Function to show help
+show_help() {
+    cat << EOF
+Usage: $0 <command> [options]
+
+Commands:
+    install
+        Install or update rclone on the system
+        No additional options required
+
+    config
+        Run rclone configuration in interactive mode
+        Configure new remotes or modify existing ones
+        No additional options required
+
+    list
+        Show all configured remotes and their mount status
+        Displays whether each remote is mounted and its mount point
+        No additional options required
+
+    mount <remote-name> <mount-path>
+        Mount a remote at the specified location
+        Arguments:
+            remote-name  : Name of the remote to mount (required)
+            mount-path   : Directory where the remote will be mounted (required)
+        Example:
+            $0 mount gdrive1 /mnt/rclone/gdrive1
+            $0 mount gdrive1 /custom/mount/point
+
+    unmount <remote-name>
+        Unmount a previously mounted remote
+        Arguments:
+            remote-name  : Name of the remote to unmount (required)
+        Example:
+            $0 unmount gdrive1
+
+Options for mounted remotes:
+    --vfs-cache-mode full    : Cache all files for better performance
+    --dir-cache-time 24h    : Cache directory listings for 24 hours
+    --buffer-size 32M       : Buffer size for streaming
+    --daemon               : Run in background
+
+For more detailed information about rclone, visit:
+    https://rclone.org/docs/
+EOF
+}
+
 # Main script
 case "$1" in
     "install")
@@ -310,14 +353,11 @@ case "$1" in
     "list")
         list_remotes
         ;;
+    "help"|"-h"|"--help")
+        show_help
+        ;;
     *)
-        echo "Usage: $0 <command>"
-        echo "Available commands:"
-        echo "  install    - Check and install rclone if not present"
-        echo "  config     - Run rclone configuration in interactive mode"
-        echo "  list       - List all configured remotes and their mount status"
-        echo "  mount      - Mount a configured remote"
-        echo "  unmount    - Unmount a mounted remote"
+        show_help
         exit 1
         ;;
 esac
