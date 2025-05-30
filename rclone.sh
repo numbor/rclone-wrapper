@@ -535,7 +535,7 @@ update_script() {
 
     # Backup current script
     local backup_file="$current_file.backup"
-    cp "$current_file" "$backup_file"
+    sudo cp "$current_file" "$backup_file"
     
     # Replace current script with new version
     if sudo cp "$temp_file" "$current_file"; then
