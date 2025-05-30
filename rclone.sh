@@ -512,6 +512,46 @@ unmount_remote() {
     fi
 }
 
+# Function to update the script from git repository
+update_script() {
+    echo "Checking for updates..."
+    local temp_file=$(mktemp)
+    local current_file="$0"
+    local update_url="http://git.home.lan:3000/marco/rclone/raw/branch/main/rclone.sh"
+
+    # Download new version
+    if ! curl -s -f "$update_url" -o "$temp_file"; then
+        echo "Error: Failed to download update from $update_url"
+        rm -f "$temp_file"
+        exit 1
+    fi
+
+    # Check if the downloaded file is different
+    if diff -q "$current_file" "$temp_file" >/dev/null; then
+        echo "Script is already up to date"
+        rm -f "$temp_file"
+        return 0
+    fi
+
+    # Backup current script
+    local backup_file="$current_file.backup"
+    cp "$current_file" "$backup_file"
+    
+    # Replace current script with new version
+    if sudo cp "$temp_file" "$current_file"; then
+        sudo chmod 755 "$current_file"
+        echo "Script updated successfully"
+        echo "Previous version backed up to $backup_file"
+    else
+        echo "Error: Failed to update script"
+        echo "The downloaded version is in $temp_file"
+        exit 1
+    fi
+
+    # Cleanup
+    rm -f "$temp_file"
+}
+
 # Function to show help
 show_help() {
     cat << EOF
@@ -520,6 +560,11 @@ Usage: $0 <command> [options]
 Commands:
     install
         Install or update rclone on the system
+        No additional options required
+
+    update
+        Update this script to the latest version
+        Downloads from git repository and replaces current script
         No additional options required
 
     config
@@ -563,6 +608,9 @@ EOF
 case "$1" in
     "install")
         install_rclone
+        ;;
+    "update")
+        update_script
         ;;
     "config")
         run_config
