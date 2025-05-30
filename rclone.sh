@@ -68,7 +68,7 @@ install_dependencies() {
     fi
 }
 
-# Function to install latest rclone version and wrapper script
+# Function to install latest rclone version, wrapper script and systemd service
 install_rclone() {
     echo "Checking rclone installation..."
     
@@ -81,6 +81,38 @@ install_rclone() {
     sudo cp "$0" "$script_path"
     sudo chmod 755 "$script_path"
     echo "Wrapper script installed successfully"
+
+    # Create systemd service for auto-mounting at boot
+    local service_file="/etc/systemd/system/rclone-automount.service"
+    echo "Creating systemd service for auto-mounting..."
+    
+    # Create the service file with proper configuration
+    sudo tee "$service_file" > /dev/null << EOF
+[Unit]
+Description=RClone Auto-Mount Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/rclone.sh mount all
+ExecStop=/usr/local/bin/rclone.sh unmount all
+User=$USER
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Set proper permissions for the service file
+    sudo chmod 644 "$service_file"
+
+    # Reload systemd, enable and start the service
+    echo "Enabling and starting rclone auto-mount service..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable rclone-automount.service
+    sudo systemctl start rclone-automount.service
+    echo "Auto-mount service installed and enabled successfully"
     
     # Check if rclone is already installed
     if command_exists rclone; then
