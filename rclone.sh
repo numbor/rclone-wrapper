@@ -1,20 +1,38 @@
 #!/bin/bash
 
-# echo "/mnt/rclone/onedrive1/"
-# ./rclone --vfs-cache-mode full mount onedrive1: /mnt/rclone/onedrive1/ --daemon --vfs-cache-mode full
+# Function to mount a single remote
+mount_single_remote() {
+    local remote_name="$1"
+    local mount_point="$2"
 
-# echo "/mnt/rclone/gdrive1/"
-# ./rclone mount gdrive1: /mnt/rclone/gdrive1/ --daemon
+    # Check if remote is already mounted
+    current_mount=$(get_current_mount "$remote_name")
+    if [ -n "$current_mount" ]; then
+        echo "Skipping $remote_name: already mounted at $current_mount"
+        return 0
+    fi
 
-# echo "/mnt/rclone/gdrive2/"
-# ./rclone mount gdrive2: /mnt/rclone/gdrive2/ --daemon
+    # Create mount point if it doesn't exist
+    sudo mkdir -p "$mount_point"
 
-# echo "/mnt/rclone/mega1/"
-# ./rclone mount mega1: /mnt/rclone/mega1/ --daemon
+    # Check if mount point is already in use
+    if mount | grep -q " on $mount_point "; then
+        echo "Error: Mount point '$mount_point' is already in use"
+        return 1
+    fi
 
-# echo "/mnt/rclone/realdebrid/"
-# ./rclone mount realdebrid: /mnt/rclone/realdebrid/ --daemon --vfs-cache-mode full 
+    echo "Mounting $remote_name to $mount_point..."
+    
+    # Mount with common options
+    rclone mount "$remote_name": "$mount_point" \
+        --daemon \
+        --vfs-cache-mode full \
+        --vfs-cache-max-age 24h \
+        --dir-cache-time 24h \
+        --buffer-size 32M
 
+    echo "Remote $remote_name mounted at $mount_point"
+}
 
 # Function to check if a command exists
 command_exists() {
@@ -130,10 +148,11 @@ mount_remote() {
     fi
 
     # Check if all required arguments are provided
-    if [ -z "$2" ] || [ -z "$3" ]; then
-        echo "Usage: $0 mount <remote-name> <mount-path>"
-        echo "  remote-name: Name of the remote to mount"
+    if [ -z "$2" ]; then
+        echo "Usage: $0 mount <remote-name> [mount-path]"
+        echo "  remote-name: Name of the remote to mount (use 'all' to mount all remotes)"
         echo "  mount-path: Directory where the remote will be mounted"
+        echo "             (required unless remote-name is 'all')"
         echo "Available remotes:"
         for remote in "${remotes[@]}"; do
             current_mount=$(get_current_mount "$remote")
@@ -143,6 +162,21 @@ mount_remote() {
                 echo "  $remote (not mounted)"
             fi
         done
+        exit 1
+    fi
+
+    # Handle mounting all remotes
+    if [ "$2" = "all" ]; then
+        echo "Mounting all available remotes..."
+        for remote in "${remotes[@]}"; do
+            mount_single_remote "$remote" "/mnt/rclone/$remote"
+        done
+        exit 0
+    fi
+
+    # For single remote, mount-path is required
+    if [ -z "$3" ]; then
+        echo "Error: mount-path is required when mounting a single remote"
         exit 1
     fi
 
@@ -227,6 +261,35 @@ list_remotes() {
     done
 }
 
+# Function to unmount a single remote
+unmount_single_remote() {
+    local remote_name="$1"
+    
+    # Get current mount point
+    current_mount=$(get_current_mount "$remote_name")
+    if [ -z "$current_mount" ]; then
+        echo "Skipping $remote_name: not mounted"
+        return 0
+    fi
+
+    echo "Unmounting $remote_name from $current_mount..."
+    
+    # Unmount using fusermount
+    fusermount -u "$current_mount"
+    
+    # Check if successfully unmounted
+    if ! mount | grep -q "^rclone.*$remote_name:"; then
+        echo "Remote $remote_name successfully unmounted"
+        # Optionally remove the mount point directory if it was the default one
+        if [[ "$current_mount" == "/mnt/rclone/$remote_name" ]]; then
+            sudo rmdir "$current_mount" 2>/dev/null
+        fi
+    else
+        echo "Error: Failed to unmount $remote_name"
+        return 1
+    fi
+}
+
 # Function to unmount a remote
 unmount_remote() {
     if ! command_exists rclone; then
@@ -247,6 +310,7 @@ unmount_remote() {
     # If no remote specified, show mounted remotes
     if [ -z "$2" ]; then
         echo "Usage: $0 unmount <remote-name>"
+        echo "  remote-name: Name of the remote to unmount (use 'all' to unmount all)"
         echo "Currently mounted remotes:"
         for remote in "${remotes[@]}"; do
             current_mount=$(get_current_mount "$remote")
@@ -255,6 +319,24 @@ unmount_remote() {
             fi
         done
         exit 1
+    fi
+
+    # Handle unmounting all remotes
+    if [ "$2" = "all" ]; then
+        echo "Unmounting all mounted remotes..."
+        local success=true
+        for remote in "${remotes[@]}"; do
+            if ! unmount_single_remote "$remote"; then
+                success=false
+            fi
+        done
+        if [ "$success" = true ]; then
+            echo "All remotes successfully unmounted"
+        else
+            echo "Warning: Some remotes could not be unmounted"
+            exit 1
+        fi
+        exit 0
     fi
 
     # Check if specified remote exists
@@ -309,13 +391,15 @@ Commands:
         Displays whether each remote is mounted and its mount point
         No additional options required
 
-    mount <remote-name> <mount-path>
+    mount <remote-name> [mount-path]
         Mount a remote at the specified location
         Arguments:
             remote-name  : Name of the remote to mount (required)
-            mount-path   : Directory where the remote will be mounted (required)
+                          Use 'all' to mount all configured remotes
+            mount-path   : Directory where the remote will be mounted
+                          (required unless remote-name is 'all')
         Example:
-            $0 mount gdrive1 /mnt/rclone/gdrive1
+            $0 mount all          # Mounts all remotes to /mnt/rclone/<remote-name>
             $0 mount gdrive1 /custom/mount/point
 
     unmount <remote-name>
