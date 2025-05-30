@@ -68,13 +68,21 @@ install_dependencies() {
     fi
 }
 
-# Function to install latest rclone version
+# Function to install latest rclone version and wrapper script
 install_rclone() {
     echo "Checking rclone installation..."
     
     # First ensure dependencies are installed
     install_dependencies
+
+    # Copy this script to /usr/local/bin
+    local script_path="/usr/local/bin/rclone.sh"
+    echo "Installing wrapper script to $script_path..."
+    sudo cp "$0" "$script_path"
+    sudo chmod 755 "$script_path"
+    echo "Wrapper script installed successfully"
     
+    # Check if rclone is already installed
     if command_exists rclone; then
         echo "rclone is already installed"
         rclone --version
