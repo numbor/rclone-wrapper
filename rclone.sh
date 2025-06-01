@@ -24,6 +24,7 @@ mount_single_remote() {
         while IFS= read -r param; do
             mount_params+=("$param")
         done < <(jq -r ".[\"$remote_name\"].mount_params[]" "$config_file" 2>/dev/null || echo "")
+    fi
 
     # Use default mount point if not configured
     if [ "$mount_point" = "null" ] || [ -z "$mount_point" ]; then
