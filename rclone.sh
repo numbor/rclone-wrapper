@@ -14,18 +14,16 @@ mount_single_remote() {
 
     # Load configuration from settings
     local config_file="$HOME/.config/rclone-wrapper/settings.json"
+    local mount_params=()  # Initialize the array
+    
     if [ -f "$config_file" ]; then
         # Get mount point and parameters for this remote
         mount_point=$(jq -r ".[\"$remote_name\"].mount_point" "$config_file" 2>/dev/null)
         
-        # Load custom parameters if they exist
-        if [ "$mount_point" != "null" ] && [ -n "$mount_point" ]; then
-            # Load mount parameters
-            while IFS= read -r param; do
-                mount_params+=("$param")
-            done < <(jq -r ".[\"$remote_name\"].mount_params[]" "$config_file" 2>/dev/null)
-        fi
-    fi
+        # Load mount parameters if they exist
+        while IFS= read -r param; do
+            mount_params+=("$param")
+        done < <(jq -r ".[\"$remote_name\"].mount_params[]" "$config_file" 2>/dev/null || echo "")
 
     # Use default mount point if not configured
     if [ "$mount_point" = "null" ] || [ -z "$mount_point" ]; then
