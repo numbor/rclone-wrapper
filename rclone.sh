@@ -69,7 +69,7 @@ command_exists() {
 
 # Function to ensure required dependencies are installed
 install_dependencies() {
-    local packages=("curl" "unzip" "fuse3")
+    local packages=("curl" "unzip" "fuse3" "jq" "rclone" "systemd" "sudo")
     local missing_packages=()
 
     for pkg in "${packages[@]}"; do
