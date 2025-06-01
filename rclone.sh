@@ -47,8 +47,8 @@ mount_single_remote() {
     if [ ${#mount_params[@]} -eq 0 ]; then
         mount_params=(
             "--vfs-cache-mode" "full"
-            "--vfs-cache-max-age" "24h"
-            "--dir-cache-time" "24h"
+            "--vfs-cache-max-age" "1h"
+            "--dir-cache-time" "30s"
             "--buffer-size" "32M"
         )
     fi
@@ -231,9 +231,9 @@ run_config() {
         echo "Enter mount parameters for $remote (one per line, empty line to finish)"
         echo "Examples:"
         echo "  --vfs-cache-mode full"
-        echo "  --vfs-cache-max-age 24h"
+        echo "  --vfs-cache-max-age 1h"
         echo "  --buffer-size 128M"
-        echo "  --dir-cache-time 24h"
+        echo "  --dir-cache-time 30s"
         
         local params=()
         while true; do
