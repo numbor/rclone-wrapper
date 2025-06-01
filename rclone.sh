@@ -181,10 +181,16 @@ run_config() {
         echo "Error: rclone is not installed. Please run '$0 install' first."
         exit 1
     fi
+
+    # Check if force config mode is enabled
+    local force_config=false
+    if [ "$2" = "-c" ]; then
+        force_config=true
+    fi
     
     # Check if rclone config exists and get remotes
     local rclone_config="$HOME/.config/rclone/rclone.conf"
-    if [ ! -f "$rclone_config" ]; then
+    if [ ! -f "$rclone_config" ] || [ "$force_config" = true ]; then
         echo "Starting rclone configuration in interactive mode..."
         rclone config
         
@@ -566,10 +572,11 @@ Commands:
         Downloads from git repository and replaces current script
         No additional options required
 
-    config
+    config [-c]
         Run rclone configuration in interactive mode
         Configure new remotes or modify existing ones
-        No additional options required
+        Options:
+            -c  : Force rclone configuration mode even if config exists
 
     list
         Show all configured remotes and their mount status
@@ -612,7 +619,7 @@ case "$1" in
         update_script
         ;;
     "config")
-        run_config
+        run_config "$@"
         ;;
     "mount")
         mount_remote "$@"
