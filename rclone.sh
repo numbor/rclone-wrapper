@@ -352,7 +352,7 @@ list_remotes() {
     fi
 
     # Check if config file exists
-    local config_file="/home/develop/.config/rclone/rclone.conf"
+    local config_file="$HOME/.config/rclone/rclone.conf"
     if [ ! -f "$config_file" ]; then
         echo "Error: rclone configuration file not found. Please run '$0 config' first."
         exit 1
@@ -438,7 +438,7 @@ unmount_remote() {
     fi
 
     # Check if config file exists
-    local config_file="/home/develop/.config/rclone/rclone.conf"
+    local config_file="$HOME/.config/rclone/rclone.conf"
     if [ ! -f "$config_file" ]; then
         echo "Error: rclone configuration file not found. Please run '$0 config' first."
         exit 1
