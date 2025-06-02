@@ -31,6 +31,49 @@ mount_single_remote() {
         mount_point="/mnt/rclone/$remote_name"
     fi
 
+    # If GUI mode is enabled, show mount point selection
+    if [ "$use_gui" = "true" ]; then
+        # Create an array of common mount points
+        local mount_options=(
+            "/mnt/rclone/$remote_name" "Default mount point"
+            "/media/$USER/$remote_name" "Media directory"
+            "/home/$USER/mounts/$remote_name" "Home directory"
+            "custom" "Specify custom path..."
+        )
+
+        # Show mount point selection menu
+        selected_option=$(dialog --stdout --title "Select Mount Point" \
+            --menu "Choose mount point for $remote_name:" 20 70 10 \
+            "${mount_options[@]}")
+        
+        clear  # Clear screen after dialog
+
+        # Check if user cancelled
+        if [ $? -ne 0 ]; then
+            echo "Mount point selection cancelled for $remote_name"
+            return 1
+        fi
+
+        # If custom path selected, ask for it
+        if [ "$selected_option" = "custom" ]; then
+            # Show input dialog for custom path
+            mount_point=$(dialog --stdout --title "Custom Mount Point" \
+                --inputbox "Enter custom mount point path for $remote_name:" 10 60 "$mount_point")
+            
+            clear  # Clear screen after dialog
+
+            # Check if user cancelled
+            if [ $? -ne 0 ]; then
+                echo "Custom path selection cancelled for $remote_name"
+                return 1
+            fi
+        else
+            mount_point="$selected_option"
+        fi
+
+        echo "Selected mount point for $remote_name: $mount_point"
+    fi
+
     # Create mount point if it doesn't exist
     sudo mkdir -p "$mount_point"
 
@@ -68,7 +111,7 @@ command_exists() {
 
 # Function to ensure required dependencies are installed
 install_dependencies() {
-    local packages=("curl" "unzip" "fuse3" "jq" "rclone" "systemd" "sudo")
+    local packages=("curl" "unzip" "fuse3" "jq" "rclone" "systemd" "sudo" "dialog")
     local missing_packages=()
 
     for pkg in "${packages[@]}"; do
@@ -302,6 +345,48 @@ mount_remote() {
     if [ ${#remotes[@]} -eq 0 ]; then
         echo "No remotes found in configuration. Please run '$0 config' to set up a remote."
         exit 1
+    fi
+
+    # Check if GUI mode is requested
+    if [ "$2" = "gui" ]; then
+        # Check if dialog is available
+        if ! command_exists dialog; then
+            echo "Error: dialog is not installed. Please run '$0 install' first."
+            exit 1
+        fi
+
+        # Create remote selection menu
+        local menu_options=()
+        for remote in "${remotes[@]}"; do
+            current_mount=$(get_current_mount "$remote")
+            if [ -n "$current_mount" ]; then
+                menu_options+=("$remote" "Currently mounted at $current_mount" "off")
+            else
+                menu_options+=("$remote" "Not mounted" "on")
+            fi
+        done
+
+        # Show remote selection dialog
+        selected_remotes=$(dialog --stdout --title "Select Remotes" \
+            --checklist "Choose remotes to mount:" 20 70 10 \
+            "${menu_options[@]}")
+        
+        clear  # Clear screen after dialog
+
+        # Check if user cancelled
+        if [ $? -ne 0 ]; then
+            echo "Operation cancelled by user"
+            exit 0
+        fi
+
+        # Convert selected_remotes from space-separated to array
+        read -ra selected_array <<< "$selected_remotes"
+
+        # Mount selected remotes with terminal UI mount point selection
+        for remote in "${selected_array[@]}"; do
+            mount_single_remote "$remote" "true"
+        done
+        exit 0
     fi
 
     # Check if all required arguments are provided
@@ -583,14 +668,16 @@ Commands:
         Displays whether each remote is mounted and its mount point
         No additional options required
 
-    mount <remote-name>
-        Mount a remote at the configured location
+    mount <remote-name|all|gui>
+        Mount remotes at the configured or selected location
         Arguments:
-            remote-name  : Name of the remote to mount (required)
-                          Use 'all' to mount all configured remotes
+            remote-name  : Name of the remote to mount
+            all         : Mount all remotes at configured locations
+            gui         : Interactive terminal UI for selecting remotes and mount points
         Example:
-            $0 mount all          # Mounts all remotes
-            $0 mount gdrive1      # Mounts single remote
+            $0 mount all          # Mounts all remotes at configured locations
+            $0 mount gui          # Interactive mount with terminal UI
+            $0 mount gdrive1      # Mounts single remote at configured location
 
     unmount <remote-name>
         Unmount a previously mounted remote
