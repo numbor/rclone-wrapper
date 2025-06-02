@@ -538,6 +538,65 @@ unmount_remote() {
     # local remotes=($(rclone listremotes | sed 's/://g'))
     local remotes=($(grep '^\[.*\]$' "$config_file" | tr -d '[]'))
 
+    # Check if GUI mode is requested
+    if [ "$2" = "gui" ]; then
+        # Check if dialog is available
+        if ! command_exists dialog; then
+            echo "Error: dialog is not installed. Please run '$0 install' first."
+            exit 1
+        fi
+
+        # Create a list of mounted remotes for the menu
+        local menu_options=()
+        local mounted_count=0
+        for remote in "${remotes[@]}"; do
+            current_mount=$(get_current_mount "$remote")
+            if [ -n "$current_mount" ]; then
+                menu_options+=("$remote" "Mounted at $current_mount" "on")
+                ((mounted_count++))
+            fi
+        done
+
+        # Check if there are any mounted remotes
+        if [ $mounted_count -eq 0 ]; then
+            dialog --msgbox "No remotes are currently mounted." 8 40
+            clear
+            exit 0
+        fi
+
+        # Show remote selection dialog
+        selected_remotes=$(dialog --stdout --title "Select Remotes to Unmount" \
+            --checklist "Choose remotes to unmount:" 20 70 10 \
+            "${menu_options[@]}")
+        
+        clear  # Clear screen after dialog
+
+        # Check if user cancelled
+        if [ $? -ne 0 ]; then
+            echo "Operation cancelled by user"
+            exit 0
+        fi
+
+        # Convert selected_remotes from space-separated to array
+        read -ra selected_array <<< "$selected_remotes"
+
+        # Unmount selected remotes
+        local success=true
+        for remote in "${selected_array[@]}"; do
+            if ! unmount_single_remote "$remote"; then
+                success=false
+            fi
+        done
+
+        if [ "$success" = true ]; then
+            echo "All selected remotes successfully unmounted"
+        else
+            echo "Warning: Some remotes could not be unmounted"
+            exit 1
+        fi
+        exit 0
+    fi
+
     # If no remote specified, show mounted remotes
     if [ -z "$2" ]; then
         echo "Usage: $0 unmount <remote-name>"
@@ -679,12 +738,16 @@ Commands:
             $0 mount gui          # Interactive mount with terminal UI
             $0 mount gdrive1      # Mounts single remote at configured location
 
-    unmount <remote-name>
-        Unmount a previously mounted remote
+    unmount <remote-name|all|gui>
+        Unmount remotes from their current locations
         Arguments:
-            remote-name  : Name of the remote to unmount (required)
+            remote-name  : Name of the remote to unmount
+            all         : Unmount all currently mounted remotes
+            gui         : Interactive terminal UI for selecting remotes to unmount
         Example:
-            $0 unmount gdrive1
+            $0 unmount all          # Unmounts all mounted remotes
+            $0 unmount gui          # Interactive unmount with terminal UI
+            $0 unmount gdrive1      # Unmounts single remote
 
 Options for mounted remotes:
     --vfs-cache-mode full    : Cache all files for better performance
